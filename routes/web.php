@@ -8,4 +8,34 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
 });
 
-require __DIR__.'/settings.php';
+Route::middleware('auth')->group(function () {
+
+    // Posts
+    Route::livewire('/posts', 'pages::posts.index')
+        ->middleware('can:create posts')
+        ->name('posts.index');
+
+    Route::livewire('/posts/create', 'pages::posts.create')
+        ->middleware('can:create posts')
+        ->name('posts.create');
+
+    Route::livewire('/posts/{post}/edit', 'pages::posts.edit')
+        ->middleware('can:edit own posts')
+        ->name('posts.edit');
+
+
+    // Users
+    Route::livewire('/users', 'pages::users.index')
+        ->middleware('can:manage users')
+        ->name('users.index');
+
+    Route::livewire('/users/create', 'pages::users.create')
+        ->middleware('can:manage users')
+        ->name('users.create');
+
+    Route::livewire('/users/{user}/edit', 'pages::users.edit')
+        ->middleware('can:manage users')
+        ->name('users.edit');
+});
+
+require __DIR__ . '/settings.php';

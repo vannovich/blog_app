@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -15,9 +14,10 @@ class RolePermissionSeeder extends Seeder
     public function run(): void
     {
         // Reset cached roles and permissions
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        app(\Spatie\Permission\PermissionRegistrar::class)
+            ->forgetCachedPermissions();
 
-        //Create permissions
+        // Create permissions
         $permissions = [
             'create posts',
             'edit own posts',
@@ -30,30 +30,56 @@ class RolePermissionSeeder extends Seeder
         ];
 
         foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission]);
+            Permission::firstOrCreate([
+                'name' => $permission,
+                'guard_name' => 'web',
+            ]);
         }
 
-        $adminRole = Role::create(['name' => 'admin']);
-        $adminRole->givePermissionTo(Permission::all());
+        // Admin role
+        $adminRole = Role::firstOrCreate([
+            'name' => 'admin',
+            'guard_name' => 'web',
+        ]);
 
-        $editorRole = Role::create(['name' => 'editor']);
-        $editorRole->givePermissionTo([
+        $adminRole->syncPermissions(Permission::all());
+
+        // Editor role
+        $editorRole = Role::firstOrCreate([
+            'name' => 'editor',
+            'guard_name' => 'web',
+        ]);
+
+        $editorRole->syncPermissions([
             'create posts',
             'edit all posts',
             'delete all posts',
             'publish posts',
         ]);
 
-        $authorRole = Role::create(['name' => 'author']);
-        $authorRole->givePermissionTo([
+        // Author role
+        $authorRole = Role::firstOrCreate([
+            'name' => 'author',
+            'guard_name' => 'web',
+        ]);
+
+        $authorRole->syncPermissions([
             'create posts',
             'edit own posts',
             'delete own posts',
         ]);
 
-        $subscriberRole = Role::create(['name' => 'subscriber']);
-        $subscriberRole->givePermissionTo([
-            // has to permission, just read
+        // Subscriber role
+        $subscriberRole = Role::firstOrCreate([
+            'name' => 'subscriber',
+            'guard_name' => 'web',
         ]);
+
+        // Subscriber has no permissions.
+        $subscriberRole->syncPermissions([]);
+
+        // Clear cache again after changes
+        app(\Spatie\Permission\PermissionRegistrar::class)
+            ->forgetCachedPermissions();
     }
 }
