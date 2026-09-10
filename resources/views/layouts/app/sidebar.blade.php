@@ -21,22 +21,30 @@
                     wire:navigate>
                     {{ __('Dashboard') }}
                 </flux:sidebar.item>
-
                 @can('create posts')
                     <flux:sidebar.item icon="document-text" :href="route('posts.index')"
                         :current="request()->routeIs('posts.index')" wire:navigate>
                         {{ __('Posts') }}
                     </flux:sidebar.item>
-
                 @endcan
-
                 @can('manage users')
                     <flux:sidebar.item icon="user-group" :href="route('users.index')"
                         :current="request()->routeIs('users.index')" wire:navigate>
                         {{ __('Users') }}
                     </flux:sidebar.item>
                 @endcan
-
+                @can('manage roles')
+                    <flux:sidebar.item icon="tag" :href="route('categories.index')"
+                        :current="request()->routeIs('categories.index')" wire:navigate>
+                        {{ __('Categories') }}
+                    </flux:sidebar.item>
+                @endcan
+                @can('manage roles')
+                    <flux:sidebar.item icon="chat-bubble-left-right" :href="route('comments.index')"
+                        :current="request()->routeIs('comments.index')" wire:navigate>
+                        {{ __('Comments') }}
+                    </flux:sidebar.item>
+                @endcan
             </flux:sidebar.group>
         </flux:sidebar.nav>
 
@@ -56,6 +64,7 @@
 
         <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
     </flux:sidebar>
+
 
     <!-- Mobile User Menu -->
     <flux:header class="lg:hidden">
@@ -94,7 +103,7 @@
                     @csrf
                     <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle"
                         class="w-full cursor-pointer" data-test="logout-button">
-                        {{ __('Log out') }}
+                        {{ __('Log Out') }}
                     </flux:menu.item>
                 </form>
             </flux:menu>
@@ -102,12 +111,6 @@
     </flux:header>
 
     {{ $slot }}
-
-    @persist('toast')
-    <flux:toast.group>
-        <flux:toast />
-    </flux:toast.group>
-    @endpersist
 
     @fluxScripts
 </body>
