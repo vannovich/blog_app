@@ -1,15 +1,13 @@
 <?php
 
-use App\Models\Category;
-use App\Models\Post;
-use App\Models\Tag;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use App\Models\Post;
+use App\Models\Tag;
+use App\Models\Category;
 use Livewire\Attributes\Validate;
-
-new class extends Component {
+new class extends Component
+{
     use WithFileUploads;
 
     public Post $post;
@@ -39,35 +37,24 @@ new class extends Component {
 
     public function mount(Post $post): void
     {
-        // User must either edit all posts
-        // or own this post and have edit own posts permission.
-        if (
-            !auth()->user()->can('edit all posts') &&
-            !(
-                auth()->user()->can('edit own posts') &&
-                $post->user_id === auth()->id()
-            )
-        ) {
+        // Authorization check
+        if (!auth()->user()->can('edit all posts') &&
+            !(auth()->user()->can('edit own posts') && $post->user_id === auth()->id())) {
             abort(403);
         }
 
         $this->post = $post;
-
         $this->title = $post->title;
         $this->excerpt = $post->excerpt ?? '';
         $this->content = $post->content;
         $this->status = $post->status;
         $this->existing_image = $post->featured_image ?? '';
 
-        $this->selectedCategories = $post->categories
-            ->pluck('id')
-            ->toArray();
-
-        $this->selectedTags = $post->tags
-            ->pluck('id')
-            ->toArray();
+        // Load existing categories and tags
+        $this->selectedCategories = $post->categories->pluck('id')->toArray();
+        $this->selectedTags = $post->tags->pluck('id')->toArray();
     }
-//
+
     public function with(): array
     {
         return [
@@ -78,25 +65,6 @@ new class extends Component {
 
     public function update(): void
     {
-        // User must be authorized to edit this post.
-        if (
-            !auth()->user()->can('edit all posts') &&
-            !(
-                auth()->user()->can('edit own posts') &&
-                $this->post->user_id === auth()->id()
-            )
-        ) {
-            abort(403);
-        }
-
-        // Only users with publish permission can publish/archive.
-        if (
-            $this->status !== 'draft' &&
-            !auth()->user()->can('publish posts')
-        ) {
-            abort(403);
-        }
-
         $this->validate();
 
         $this->post->title = $this->title;
@@ -105,44 +73,35 @@ new class extends Component {
         $this->post->content = $this->content;
         $this->post->status = $this->status;
 
-        // Handle featured image
         if ($this->featured_image) {
+            // Delete old image if exists
             if ($this->existing_image) {
-                Storage::disk('public')->delete($this->existing_image);
+                \Storage::disk('public')->delete($this->existing_image);
             }
 
             $path = $this->featured_image->store('posts', 'public');
-
             $this->post->featured_image = $path;
             $this->existing_image = $path;
         }
 
-        // Handle published_at
-        if ($this->status === 'published') {
-            $this->post->published_at ??= now();
-        } else {
-            $this->post->published_at = null;
+        if ($this->status === 'published' && !$this->post->published_at) {
+            $this->post->published_at = now();
         }
 
         $this->post->save();
 
-        // Sync relationships
+        // Sync categories and tags
         $this->post->categories()->sync($this->selectedCategories);
         $this->post->tags()->sync($this->selectedTags);
 
-        session()->flash(
-            'success',
-            'Post updated successfully!'
-        );
 
-        $this->redirect(
-            route('posts.index'),
-            navigate: true
-        );
+        session()->flash('success', 'Post updated successfully!');
+
+        $this->redirect(route('posts.index'), navigate: true);
     }
+
 };
 ?>
-
 
 <div>
     <div class="mb-6">
@@ -157,10 +116,15 @@ new class extends Component {
                 <label for="title" class="block text-sm font-medium text-gray-700">
                     Title
                 </label>
-                <input type="text" id="title" wire:model.live.debounce="title" placeholder="Enter post title"
-                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                <input
+                    type="text"
+                    id="title"
+                    wire:model.live.debounce="title"
+                    placeholder="Enter post title"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
                 @error('title')
-                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
             </div>
 
@@ -169,11 +133,15 @@ new class extends Component {
                 <label for="excerpt" class="block text-sm font-medium text-gray-700">
                     Excerpt
                 </label>
-                <textarea id="excerpt" wire:model="excerpt" placeholder="A short summary of your post (optional)"
+                <textarea
+                    id="excerpt"
+                    wire:model="excerpt"
+                    placeholder="A short summary of your post (optional)"
                     rows="2"
-                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></textarea>
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                ></textarea>
                 @error('excerpt')
-                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
             </div>
 
@@ -182,23 +150,30 @@ new class extends Component {
                 <label for="content" class="block text-sm font-medium text-gray-700">
                     Content
                 </label>
-                <div wire:ignore x-data="{
+                <div wire:ignore
+                     x-data="{
                         content: $wire.entangle('content'),
-                    }" x-init="
+                    }"
+                     x-init="
                         let editor = $refs.trixEditor.editor;
                         editor.loadHTML(content);
                         $refs.trixEditor.addEventListener('trix-change', function(e){
                             content = e.target.value;
                         });
-                    ">
+                    "
+                >
                     <input id="x-content" type="hidden" name="content">
-                    <trix-editor input="x-content" class="trix-content" x-ref="trixEditor"></trix-editor>
+                    <trix-editor
+                        input="x-content"
+                        class="trix-content"
+                        x-ref="trixEditor"
+                    ></trix-editor>
                 </div>
 
             </div>
             @error('content')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
+            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        @enderror
     </div>
 
     <!-- Featured Image -->
@@ -210,26 +185,29 @@ new class extends Component {
         @if ($existing_image && !$featured_image)
             <div class="mt-2 mb-3">
                 <p class="text-sm text-gray-600 mb-1">Current image:</p>
-                <img src="{{ Storage::url($existing_image) }}" class="h-32 w-auto rounded border border-gray-300"
-                    alt="Current image">
+                <img src="{{ Storage::url($existing_image) }}" class="h-32 w-auto rounded border border-gray-300" alt="Current image">
             </div>
         @endif
 
-        <input type="file" wire:model="featured_image" accept="image/*" class="mt-1 block w-full text-sm text-gray-500
+        <input
+            type="file"
+            wire:model="featured_image"
+            accept="image/*"
+            class="mt-1 block w-full text-sm text-gray-500
                         file:mr-4 file:py-2 file:px-4
                         file:rounded-md file:border-0
                         file:text-sm file:font-semibold
                         file:bg-indigo-50 file:text-indigo-700
-                        hover:file:bg-indigo-100" />
+                        hover:file:bg-indigo-100"
+        />
         @error('featured_image')
-            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
         @enderror
 
         @if ($featured_image)
             <div class="mt-3" wire:transition>
                 <p class="text-sm text-gray-600 mb-1">New image:</p>
-                <img src="{{ $featured_image->temporaryUrl() }}" class="h-32 w-auto rounded border border-gray-300"
-                    alt="Preview">
+                <img src="{{ $featured_image->temporaryUrl() }}" class="h-32 w-auto rounded border border-gray-300" alt="Preview">
             </div>
         @endif
 
@@ -246,18 +224,24 @@ new class extends Component {
         <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3">
             @foreach($categories as $category)
                 <label class="flex items-center">
-                    <input type="checkbox" wire:model="selectedCategories" value="{{ $category->id }}"
-                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
+                    <input
+                        type="checkbox"
+                        wire:model="selectedCategories"
+                        value="{{ $category->id }}"
+                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
                     <span class="ml-3 flex items-center">
-                        <span class="inline-block w-3 h-3 rounded-full mr-2"
-                            style="background-color: {{ $category->color }}"></span>
-                        <span class="text-sm font-medium text-gray-700">{{ $category->name }}</span>
-                    </span>
+                                <span
+                                    class="inline-block w-3 h-3 rounded-full mr-2"
+                                    style="background-color: {{ $category->color }}"
+                                ></span>
+                                <span class="text-sm font-medium text-gray-700">{{ $category->name }}</span>
+                            </span>
                 </label>
             @endforeach
         </div>
         @error('selectedCategories')
-            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
         @enderror
     </div>
 
@@ -269,14 +253,18 @@ new class extends Component {
         <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3">
             @foreach($tags as $tag)
                 <label class="flex items-center">
-                    <input type="checkbox" wire:model="selectedTags" value="{{ $tag->id }}"
-                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
+                    <input
+                        type="checkbox"
+                        wire:model="selectedTags"
+                        value="{{ $tag->id }}"
+                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
                     <span class="ml-3 text-sm font-medium text-gray-700">{{ $tag->name }}</span>
                 </label>
             @endforeach
         </div>
         @error('selectedTags')
-            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
         @enderror
     </div>
 
@@ -288,37 +276,53 @@ new class extends Component {
         </label>
         <div class="space-y-2">
             <label class="flex items-center">
-                <input type="radio" wire:model="status" value="draft"
-                    class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300" />
+                <input
+                    type="radio"
+                    wire:model="status"
+                    value="draft"
+                    class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                />
                 <span class="ml-3 block text-sm font-medium text-gray-700">Draft</span>
             </label>
             @can('publish posts')
                 <label class="flex items-center">
-                    <input type="radio" wire:model="status" value="published"
-                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300" />
+                    <input
+                        type="radio"
+                        wire:model="status"
+                        value="published"
+                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                    />
                     <span class="ml-3 block text-sm font-medium text-gray-700">Published</span>
                 </label>
 
                 <label class="flex items-center">
-                    <input type="radio" wire:model="status" value="archived"
-                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300" />
+                    <input
+                        type="radio"
+                        wire:model="status"
+                        value="archived"
+                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                    />
                     <span class="ml-3 block text-sm font-medium text-gray-700">Archived</span>
                 </label>
             @endcan
         </div>
         @error('status')
-            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
         @enderror
     </div>
 
     <!-- Actions -->
     <div class="flex gap-3">
-        <button type="submit"
-            class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
+        <button
+            type="submit"
+            class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150"
+        >
             Update Post
         </button>
-        <a href="{{ route('posts.index') }}"
-            class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
+        <a
+            href="{{ route('posts.index') }}"
+            class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150"
+        >
             Cancel
         </a>
     </div>

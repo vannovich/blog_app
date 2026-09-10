@@ -1,23 +1,44 @@
 <?php
 
 use Livewire\Component;
-use Livewire\Attributes\Validate;
-use Spatie\Permission\Models\Role;
 use App\Models\User;
+use Livewire\Attributes\Validate;
+use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Hash;
+
 new class extends Component
 {
+    public User $user;
+
     #[Validate('required|string|max:255')]
     public string $name = '';
 
-    #[Validate('required|string|email|max:255|unique:users')]
     public string $email = '';
 
-    #[Validate('required|string|min:8')]
+    #[Validate('nullable|string|min:8')]
     public string $password = '';
 
     #[Validate('required|array|min:1')]
     public array $selectedRoles = [];
+
+    public function mount(User $user): void
+    {
+        $this->user = $user;
+        $this->name = $user->name;
+        $this->email = $user->email;
+        $this->selectedRoles = $user->roles->pluck('name')->toArray();
+    }
+
+    public function rules()
+    {
+        return [
+            'name' => 'required|string|max:255',
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($this->user->id)],
+            'password' => 'nullable|string|min:8',
+            'selectedRoles' => 'required|array|min:1',
+        ];
+    }
 
     public function with(): array
     {
@@ -26,33 +47,37 @@ new class extends Component
         ];
     }
 
-    public function save(): void
+    public function update(): void
     {
         $this->validate();
 
-        $user = User::create([
-            'name' => $this->name,
-            'email' => $this->email,
-            'password' => Hash::make($this->password),
-        ]);
+        $this->user->name = $this->name;
+        $this->user->email = $this->email;
 
-        $user->assignRole($this->selectedRoles);
+        if ($this->password) {
+            $this->user->password = Hash::make($this->password);
+        }
 
-        session()->flash('success', 'User created successfully!');
+        $this->user->save();
+
+        $this->user->syncRoles($this->selectedRoles);
+
+        session()->flash('success', 'User updated successfully!');
 
         $this->redirect(route('users.index'), navigate: true);
     }
+
 };
 ?>
 
 <div>
     <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900">Create New User</h1>
-        <p class="mt-1 text-sm text-gray-600">Add a new user to the system</p>
+        <h1 class="text-2xl font-bold text-gray-900">Edit User</h1>
+        <p class="mt-1 text-sm text-gray-600">Update user information</p>
     </div>
 
     <div class="bg-white rounded-lg border border-gray-200 p-6">
-        <form wire:submit="save" class="space-y-6">
+        <form wire:submit="update" class="space-y-6">
             <!-- Name -->
             <div>
                 <label for="name" class="block text-sm font-medium text-gray-700">
@@ -62,8 +87,6 @@ new class extends Component
                     type="text"
                     id="name"
                     wire:model="name"
-                    placeholder="Enter user's full name"
-                    autofocus
                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 />
                 @error('name')
@@ -80,7 +103,6 @@ new class extends Component
                     type="email"
                     id="email"
                     wire:model="email"
-                    placeholder="user@example.com"
                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 />
                 @error('email')
@@ -91,18 +113,19 @@ new class extends Component
             <!-- Password -->
             <div>
                 <label for="password" class="block text-sm font-medium text-gray-700">
-                    Password
+                    New Password
                 </label>
                 <input
                     type="password"
                     id="password"
                     wire:model="password"
-                    placeholder="Minimum 8 characters"
+                    placeholder="Leave blank to keep current password"
                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 />
                 @error('password')
                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror
+                <p class="mt-1 text-sm text-gray-500">Leave blank to keep current password</p>
             </div>
 
             <!-- Roles -->
@@ -137,7 +160,7 @@ new class extends Component
                     type="submit"
                     class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150"
                 >
-                    Create User
+                    Update User
                 </button>
                 <a
                     href="{{ route('users.index') }}"
